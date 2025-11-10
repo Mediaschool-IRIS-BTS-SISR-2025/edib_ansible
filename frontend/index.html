@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VM Manager</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/styles.css?v=11"></head>
+<link rel="stylesheet" href="/static/styles.css?v=14"></head>
 <body>
     <!-- Header -->
     <header class="main-header">VM Manager</header>
@@ -210,8 +210,17 @@
       </div>
     </div>
 
-    <footer class="site-footer">Réalisé par Edib</footer>
+    <!-- Easter egg button (invisible) -->
+    <button id="easterEggBtn" aria-label="Easter egg" style="position: fixed; top: 0; left: 0; width: 30px; height: 30px; background: transparent; border: none; cursor: default; z-index: 9999; opacity: 0;"></button>
 
-    <script src="/static/app.js?v=8"></script>
+    <!-- Modal cowsay -->
+    <div id="cowsayModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; justify-content: center; align-items: center;">
+        <div style="background: #1a1a1a; padding: 2rem; border-radius: 8px; max-width: 600px; position: relative;">
+            <button id="closeCowsay" style="position: absolute; top: 10px; right: 10px; background: transparent; border: none; color: #fff; font-size: 1.5rem; cursor: pointer;">&times;</button>
+            <pre id="cowsayOutput" style="color: #0f0; font-family: monospace; font-size: 0.9rem; overflow-x: auto; white-space: pre;"></pre>
+        </div>
+    </div>
+
+    <script src="/static/app.js?v=14"></script>
 </body>
 </html>

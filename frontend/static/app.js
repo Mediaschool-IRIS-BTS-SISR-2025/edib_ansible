@@ -105,7 +105,26 @@ document.addEventListener("DOMContentLoaded", () => {
         card.classList.add("selected");
         selectedOS = card.dataset.os;
         updateCreateNote();
+        toggleRootPasswordField(); // Afficher/masquer selon l'OS
     }));
+
+    // Fonction pour afficher/masquer le champ root password
+    function toggleRootPasswordField() {
+        const rootPasswordGroup = vmRootPasswordInput?.closest('.form-group');
+        if (!rootPasswordGroup) return;
+        
+        if (selectedOS === "windows") {
+            // Windows : masquer le champ root password (non nécessaire)
+            rootPasswordGroup.style.display = "none";
+            vmRootPasswordInput.removeAttribute("required");
+            vmRootPasswordInput.value = ""; // Vider le champ
+        } else {
+            // Debian : afficher le champ root password
+            rootPasswordGroup.style.display = "block";
+            vmRootPasswordInput.setAttribute("required", "required");
+        }
+        validateForm(); // Re-valider le formulaire
+    }
 
     function updateCreateNote() {
         if (!createNote) return;
@@ -130,24 +149,48 @@ document.addEventListener("DOMContentLoaded", () => {
         const password = vmPasswordInput?.value || "";
         const passwordConfirm = vmPasswordConfirmInput?.value || "";
         const rootPwd = vmRootPasswordInput?.value || "";
-        const rootValid = rootPwd.length >= 6;
-
-        if (rootPasswordHelp) {
-            if (!rootPwd) {
-                rootPasswordHelp.textContent = "Mot de passe root/Administrator obligatoire";
-                rootPasswordHelp.style.color = "var(--error)";
-            } else if (!rootValid) {
-                rootPasswordHelp.textContent = "Minimum 6 caractères";
-                rootPasswordHelp.style.color = "var(--error)";
-            } else {
-                rootPasswordHelp.textContent = "✓ Mot de passe root/Administrator valide";
-                rootPasswordHelp.style.color = "var(--success)";
+        
+        // Validation plus stricte pour Windows (complexité requise)
+        const isWindows = selectedOS === "windows";
+        
+        // Validation root/Administrator
+        // Pour Windows: pas besoin (champ masqué), pour Debian: obligatoire
+        let rootValid;
+        if (isWindows) {
+            rootValid = true; // Pas de validation root pour Windows
+        } else {
+            rootValid = rootPwd.length >= 6;
+            
+            if (rootPasswordHelp) {
+                if (!rootPwd) {
+                    rootPasswordHelp.textContent = "Mot de passe root obligatoire pour Debian";
+                    rootPasswordHelp.style.color = "var(--error)";
+                } else if (!rootValid) {
+                    rootPasswordHelp.textContent = "Minimum 6 caractères";
+                    rootPasswordHelp.style.color = "var(--error)";
+                } else {
+                    rootPasswordHelp.textContent = "✓ Mot de passe root valide";
+                    rootPasswordHelp.style.color = "var(--success)";
+                }
             }
         }
 
         const nameValid = VM_NAME_RE.test(name);
         const usernameValid = VM_USERNAME_RE.test(username);
-        const passwordValid = password.length >= 6;
+        
+        // Validation mot de passe utilisateur
+        let passwordValid;
+        if (isWindows) {
+            // Windows: minimum 8 chars, au moins 1 majuscule, 1 minuscule, 1 chiffre
+            const hasUpper = /[A-Z]/.test(password);
+            const hasLower = /[a-z]/.test(password);
+            const hasDigit = /[0-9]/.test(password);
+            passwordValid = password.length >= 8 && hasUpper && hasLower && hasDigit;
+        } else {
+            // Linux: minimum 6 chars
+            passwordValid = password.length >= 6;
+        }
+        
         const passwordsMatch = password === passwordConfirm && password.length > 0;
         
         const help = document.getElementById("vmNameHelp");
@@ -167,7 +210,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 passwordHelp.textContent = "Mot de passe obligatoire";
                 passwordHelp.style.color = "var(--error)";
             } else if (!passwordValid) {
-                passwordHelp.textContent = "Minimum 6 caractères";
+                if (isWindows) {
+                    passwordHelp.textContent = "Windows: minimum 8 caractères, 1 majuscule, 1 minuscule, 1 chiffre";
+                } else {
+                    passwordHelp.textContent = "Minimum 6 caractères";
+                }
                 passwordHelp.style.color = "var(--error)";
             } else if (!passwordsMatch) {
                 passwordHelp.textContent = "Les mots de passe ne correspondent pas";
@@ -199,9 +246,13 @@ document.addEventListener("DOMContentLoaded", () => {
             vm_type: selectedRole, 
             os: selectedOS,
             vm_username: vmUsernameInput.value.trim(),
-            vm_password: vmPasswordInput.value,
-            root_password: vmRootPasswordInput.value
+            vm_password: vmPasswordInput.value
         };
+        
+        // Ajouter root_password seulement pour Debian
+        if (selectedOS !== "windows") {
+            payload.root_password = vmRootPasswordInput.value;
+        }
 
         logMessage(`Création VM ${payload.vm_name}...`, "info");
         confirmCreateBtn.disabled = true;
@@ -216,6 +267,15 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await res.json();
             logMessage(data.message, res.ok ? "success" : "error");
             if (res.ok) {
+                // Message spécial pour Windows
+                if (payload.os === "windows") {
+                    logMessage(`✅ VM Windows créée ! Compte configuré :`, "success");
+                    logMessage(`   • ${payload.vm_username} / ${payload.vm_password} (Administrateur)`, "info");
+                    logMessage(`   • vagrant / ${payload.vm_password} (masqué, même mdp)`, "info");
+                    logMessage("⌨️ Clavier: AZERTY configuré", "success");
+                    logMessage("👤 Votre compte apparaît à l'écran de connexion", "info");
+                }
+                
                 vmNameInput.value = "";
                 vmUsernameInput.value = "";
                 vmPasswordInput.value = "";
@@ -454,3 +514,41 @@ function hideLoader() {
     if (!overlay) return;
     overlay.style.display = "none";
 }
+
+// -------------------- Easter Egg Cowsay --------------------
+document.addEventListener("DOMContentLoaded", () => {
+    const easterEggBtn = document.getElementById("easterEggBtn");
+    const cowsayModal = document.getElementById("cowsayModal");
+    const closeCowsay = document.getElementById("closeCowsay");
+    const cowsayOutput = document.getElementById("cowsayOutput");
+
+    if (easterEggBtn) {
+        easterEggBtn.addEventListener("click", async () => {
+            try {
+                const response = await fetch("/api/cowsay");
+                const data = await response.json();
+                if (data.output) {
+                    cowsayOutput.textContent = data.output;
+                    cowsayModal.style.display = "flex";
+                }
+            } catch (err) {
+                console.error("Erreur cowsay:", err);
+            }
+        });
+    }
+
+    if (closeCowsay) {
+        closeCowsay.addEventListener("click", () => {
+            cowsayModal.style.display = "none";
+        });
+    }
+
+    // Fermer en cliquant sur le fond
+    if (cowsayModal) {
+        cowsayModal.addEventListener("click", (e) => {
+            if (e.target === cowsayModal) {
+                cowsayModal.style.display = "none";
+            }
+        });
+    }
+});
