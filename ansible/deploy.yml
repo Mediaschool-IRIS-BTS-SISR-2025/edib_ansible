@@ -1,0 +1,60 @@
+---
+- name: Deploy VM_Manager (backend + frontend)
+  hosts: vmhosts
+  become: true
+  vars:
+    repo_url: 'https://github.com/edib16/Vm_Manager.git'
+    dest_path: '/home/{{ ansible_user }}/Vm_Manager'
+    service_user: '{{ ansible_user }}'
+    frontend_image: 'vm_manager_frontend:latest'
+
+  tasks:
+    - name: Ensure required packages are installed (Debian/Ubuntu)
+      apt:
+        name:
+          - git
+          - python3-venv
+          - python3-pip
+          - docker.io
+        state: present
+        update_cache: yes
+
+    - name: Clone or update repository
+      git:
+        repo: '{{ repo_url }}'
+        dest: '{{ dest_path }}'
+        version: main
+        force: yes
+
+    - name: Ensure deploy.sh is executable
+      file:
+        path: '{{ dest_path }}/deploy.sh'
+        mode: '0755'
+
+    - name: Run deploy.sh to setup backend and systemd service
+      command: './deploy.sh {{ service_user }}'
+      args:
+        chdir: '{{ dest_path }}'
+
+    - name: Build frontend Docker image
+      command: 'docker build -t {{ frontend_image }} .'
+      args:
+        chdir: '{{ dest_path }}/frontend'
+
+    - name: Stop existing frontend container if present
+      shell: |
+        if docker ps -a --format '{{"{{.Names}}"}}' | grep -q '^vm_frontend$'; then
+          docker rm -f vm_frontend || true
+        fi
+
+    - name: Run frontend container
+      command: 'docker run -d --name vm_frontend -p 8080:80 {{ frontend_image }}'
+
+    - name: Show systemd status for vm_manager.service
+      command: systemctl status vm_manager.service --no-pager
+      register: svc_status
+      ignore_errors: true
+
+    - name: Print status
+      debug:
+        var: svc_status.stdout_lines
