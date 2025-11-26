@@ -172,3 +172,41 @@ Si vous voulez, je peux :
 - Préparer un `nginx` config complet et commandes `certbot` pour automatiser le TLS.
 
 Dites-moi quel(s) point(s) vous voulez que j'implémente ensuite (ex: `systemd` service, configuration nginx prête à coller, scripts d'installation).
+
+## Lancer avec systemd (service)
+
+Si vous préférez contrôler l'application avec `systemctl` (démarrer/arrêter automatiquement au boot), voici une unité `systemd` incluse : `backend/vm_manager.service`.
+
+Ce que fait cette unité :
+- Travaille depuis `/home/edib/Vm_Manager` en tant qu'utilisateur `edib` (modifiez `User=`/`Group=` si nécessaire).
+- Tente d'utiliser `gunicorn` à l'intérieur d'un virtualenv (`.venv`) si présent : commande par défaut utilisée :
+
+  `gunicorn --workers 3 --bind 0.0.0.0:5000 backend.main:app`
+
+- Si vous préférez exécuter directement `python3 backend/main.py`, vous pouvez éditer le fichier et décommenter la ligne de fallback `ExecStart`.
+
+Installation et commandes utiles :
+
+```bash
+# Copier l'unité dans systemd et recharger
+sudo cp backend/vm_manager.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Activer au démarrage et lancer maintenant
+sudo systemctl enable --now vm_manager.service
+
+# Vérifier le statut
+sudo systemctl status vm_manager.service
+
+# Arrêter / démarrer
+sudo systemctl stop vm_manager.service
+sudo systemctl start vm_manager.service
+
+# Voir les logs en temps réel
+sudo journalctl -u vm_manager.service -f
+```
+
+Remarques :
+- Assurez-vous que `gunicorn` est installé (ex: `pip install gunicorn`) si vous utilisez la ligne `ExecStart` par défaut.
+- Si vous utilisez un virtualenv, créez-le à la racine du projet (`python -m venv .venv`) et installez les dépendances (`pip install -r backend/requirements.txt`).
+- Modifiez la directive `User=` dans le fichier d'unité si vous voulez exécuter le service sous un autre compte système.
