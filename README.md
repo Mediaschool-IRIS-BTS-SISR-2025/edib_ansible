@@ -210,3 +210,116 @@ Remarques :
 - Assurez-vous que `gunicorn` est installé (ex: `pip install gunicorn`) si vous utilisez la ligne `ExecStart` par défaut.
 - Si vous utilisez un virtualenv, créez-le à la racine du projet (`python -m venv .venv`) et installez les dépendances (`pip install -r backend/requirements.txt`).
 - Modifiez la directive `User=` dans le fichier d'unité si vous voulez exécuter le service sous un autre compte système.
+
+## Guide de démarrage complet et dépannage
+
+Voici des instructions pas-à-pas pour préparer, lancer et diagnostiquer l'application en production (systemd + gunicorn), ainsi que des commandes de secours.
+
+1) Préparer l'environnement (virtualenv recommandé)
+
+```bash
+# depuis la racine du projet
+python3 -m venv .venv
+# activer (bash)
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+pip install gunicorn
+deactivate
+```
+
+2) Vérifier le fichier d'unité systemd
+
+- Le fichier fourni est `backend/vm_manager.service` et, pour fonctionner correctement avec les imports du projet, il lance gunicorn depuis le dossier `backend`.
+- Principales directives à contrôler avant installation :
+  - `User=` : l'utilisateur système qui exécutera le service (par défaut `edib`). Changez si nécessaire.
+  - `WorkingDirectory=` : doit pointer vers `/home/edib/Vm_Manager/backend` (c'est important pour que `import config` fonctionne).
+  - `ExecStart=` : par défaut la commande essaie d'activer `.venv` puis lance `gunicorn main:app` depuis `backend`.
+
+3) Installer et démarrer le service (systemd)
+
+```bash
+sudo cp backend/vm_manager.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now vm_manager.service
+sudo systemctl status vm_manager.service
+# suivre les logs
+sudo journalctl -u vm_manager.service -f
+```
+
+4) Tester l'accès local
+
+```bash
+# depuis la même machine
+curl -v http://127.0.0.1:5000/
+# ou vérifier l'écoute du port
+ss -ltnp | grep ':5000' || true
+```
+
+5) Comment arrêter proprement et empêcher les relances automatiques
+
+Si tu veux arrêter le service et empêcher systemd de le relancer automatiquement :
+
+```bash
+sudo systemctl stop vm_manager.service
+sudo systemctl disable vm_manager.service
+# si tu veux forcer l'arrêt immédiat des processus encore présents
+sudo systemctl kill vm_manager.service
+sudo pkill -f gunicorn || true
+```
+
+6) Si le statut reste `activating` ou `active` alors que l'app est inaccessible
+
+- Vérifie les logs :
+
+```bash
+sudo journalctl -u vm_manager.service -n 200 --no-pager
+```
+
+- Causes fréquentes et résolutions :
+  - `ModuleNotFoundError: No module named 'config'` → solution : lancer gunicorn depuis le dossier `backend` (le fichier d'unité le fait), ou corriger les imports dans `backend/main.py`.
+  - Workers qui plantent en boucle → regarde l'exception dans `journalctl` et corrige la cause (dépendances manquantes, erreurs d'import, variables d'environnement non définies).
+  - Pare-feu (ufw/iptables) bloque le port 5000 → autoriser le port : `sudo ufw allow 5000/tcp`.
+  - Le service tourne mais écoute sur `127.0.0.1` et tu y accèdes à distance → utiliser l'IP publique ou configurer un reverse-proxy (nginx) pour exposer sur 80/443.
+
+7) Commandes utiles de dépannage rapide
+
+```bash
+# statut détaillé
+sudo systemctl status vm_manager.service
+# logs récents
+sudo journalctl -u vm_manager.service -n 200 --no-pager
+# suivre les logs
+sudo journalctl -u vm_manager.service -f
+# vérifier le port
+ss -ltnp | grep ':5000' || true
+# processus gunicorn
+ps aux | egrep 'gunicorn|backend/main.py' || true
+# réinitialiser les erreurs systemd
+sudo systemctl reset-failed vm_manager.service
+```
+
+8) Lancer manuellement (pour debug)
+
+- Gunicorn (depuis `backend` si tu utilises les imports tels quels) :
+
+```bash
+source .venv/bin/activate
+cd backend
+gunicorn --workers 3 --bind 0.0.0.0:5000 main:app
+```
+
+- Développement rapide (flask run) :
+
+```bash
+export FLASK_APP=backend/main.py
+export FLASK_ENV=development
+flask run --host=0.0.0.0 --port=5000
+```
+
+9) Remarques de sécurité / production
+
+- Préfère un reverse-proxy (nginx) devant gunicorn pour TLS, compression, gestion des en-têtes et accès public.
+- Protéger les accès noVNC/websockify (utiliser `wss://` ou reverse-proxy TLS + authentification côté application).
+- Exécuter le service sous un compte non-root et limiter les permissions.
+
+Si tu veux, je peux automatiser la préparation (création du `.venv`, installation des dépendances) et vérifier que le service démarre correctement sur ta machine. Veux-tu que j'exécute ces étapes maintenant ?
