@@ -12,7 +12,8 @@ Environment=FLASK_ENV=production
 Environment=SECRET_KEY={{ secret_key | default('dev-secret-change-me') }}
 
 # Lancer gunicorn depuis le virtualenv
-ExecStart=/bin/bash -lc 'if [ -f "{{ venv_dir }}/bin/activate" ]; then . "{{ venv_dir }}/bin/activate"; fi; cd "{{ dest_path }}/backend" && exec "{{ venv_dir }}/bin/gunicorn" --workers {{ gunicorn_workers | default(3) }} --bind 0.0.0.0:{{ gunicorn_port | default(5000) }} main:app'
+ExecStart={{ venv_dir }}/bin/gunicorn --workers {{ gunicorn_workers | default(3) }} --bind 0.0.0.0:{{ gunicorn_port | default(5000) }} main:app
+WorkingDirectory={{ dest_path }}/backend
 
 Restart=on-failure
 RestartSec=5s
