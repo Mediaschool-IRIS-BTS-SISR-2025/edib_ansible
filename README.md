@@ -4,11 +4,11 @@ VM_Manager est une interface web pour gérer des machines virtuelles étudiantes
 
 ## 🚀 Déploiement sur le serveur iris.a3n.fr
 
-Le projet est déployé sur `vm_manager.iris.a3n.fr` via **Docker Compose** et **Traefik**.
+Le projet est déployé sur `vm-manager.iris.a3n.fr` via **Docker Compose** et **Traefik**.
 
 ### Accès
-- **Frontend** : http://vm_manager.iris.a3n.fr
-- **Backend API** : https://vm_manager.iris.a3n.fr
+- **Frontend** : http://vm-manager.iris.a3n.fr
+- **Backend API** : https://vm-manager.iris.a3n.fr
 
 ### Architecture de déploiement
 
@@ -97,8 +97,8 @@ docker ps --filter name=vm_manager
 
 Les labels Traefik dans `docker-compose.traefik.yml` configurent automatiquement le routage :
 
-- **Frontend** : HTTP sur `vm_manager.iris.a3n.fr` (port 80)
-- **Backend** : HTTPS sur `vm_manager.iris.a3n.fr` (port 5000, TLS via Let's Encrypt)
+- **Frontend** : HTTP sur `vm-manager.iris.a3n.fr` (port 80)
+- **Backend** : HTTPS sur `vm-manager.iris.a3n.fr` (port 5000, TLS via Let's Encrypt)
 
 Les deux services sont connectés au réseau Docker `admin_proxy` utilisé par Traefik.
 
